@@ -89,14 +89,14 @@ public class DatabaseManager {
             stmt.execute(createQueriesTable);
             stmt.execute(createCacheTable);
             stmt.execute(createFavoriteTeamsTable);
-            System.out.println("✅ Tabelle database create/verificate");
+            System.out.println("Tabelle database create/verificate");
         } catch (SQLException e) {
-            System.err.println("❌ Errore nella creazione delle tabelle: " + e.getMessage());
+            System.err.println("Errore nella creazione delle tabelle: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    // ========== GESTIONE UTENTI ==========
+    // GESTIONE UTENTI
 
     public void registerUser(Long userId, String username, String firstName, String lastName) {
         String sql = """
@@ -207,7 +207,7 @@ public class DatabaseManager {
         return false;
     }
 
-    // ========== STORICO QUERY ==========
+    // STORICO QUERY
 
     public void logQuery(Long userId, String queryType, String leagueCode) {
         String sql = """
@@ -277,7 +277,7 @@ public class DatabaseManager {
         return null;
     }
 
-    // ========== CACHE API ==========
+    // CACHE API
 
     public void saveCache(String cacheKey, String data, String leagueCode, int expirationMinutes) {
         String sql = """
@@ -339,7 +339,7 @@ public class DatabaseManager {
         }
     }
 
-    // ========== STATISTICHE ==========
+    // STATISTICHE
 
     public int getTotalUsers() {
         String sql = "SELECT COUNT(*) as count FROM users";
@@ -369,7 +369,7 @@ public class DatabaseManager {
         return 0;
     }
 
-    // ========== GESTIONE SQUADRE PREFERITE ==========
+    // GESTIONE DELLE SQUADRE PREFERITE
 
     public void addFavoriteTeam(Long userId, String teamName, int teamId) {
         String sql = """

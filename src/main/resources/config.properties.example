@@ -1,0 +1,17 @@
+# ===================================
+# CONFIGURAZIONE BOT DI CALCIO
+# ===================================
+#
+# ISTRUZIONI:
+# Non si deve mai committare il file config.properties su GitHub!
+# ===================================
+
+# Token del Bot Telegram
+# Si ottiene da @BotFather su Telegram
+# Esempio: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+BOT_TOKEN=bot_token
+
+# API Key di football-data.org
+# Registrati su https://www.football-data.org/client/register
+# Esempio: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+FOOTBALL_API_KEY=api_key

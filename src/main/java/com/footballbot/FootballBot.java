@@ -24,6 +24,7 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
     private final FootballAPI footballAPI;
     private final DatabaseManager databaseManager;
     private final Map<Long, String> userSelectedLeague = new HashMap<>();
+    private final Map<Long, Integer> userSelectedTeam = new HashMap<>();
 
     public FootballBot() {
         this.telegramClient = new OkHttpTelegramClient(MyConfiguration.getInstance().getProperty("BOT_TOKEN"));
@@ -40,7 +41,6 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
                 String firstName = update.getMessage().getFrom().getFirstName();
                 String lastName = update.getMessage().getFrom().getLastName();
 
-                // Registra l'utente nel database
                 databaseManager.registerUser(userId, username, firstName, lastName);
                 databaseManager.updateUserActivity(userId);
 
@@ -90,15 +90,12 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
             sendUserStats(chatId, userId);
         } else if (messageText.startsWith("/oggi")) {
             sendTodayMatches(chatId, userId);
-        } else if (messageText.startsWith("/cerca ")) {
-            String playerName = messageText.substring(7).trim();
-            if (!playerName.isEmpty()) {
-                sendPlayerSearch(chatId, userId, playerName);
-            } else {
-                sendMessage(chatId, "❌ Usa: /cerca Nome Cognome");
-            }
         } else if (messageText.startsWith("/squadre")) {
             sendTeamsMenu(chatId);
+        } else if (messageText.startsWith("/h2h")) {
+            sendH2HMenu(chatId);
+        } else if (messageText.startsWith("/marcatori")) {
+            sendAllTopScorers(chatId, userId);
         } else {
             sendMessage(chatId, "❌ Comando non riconosciuto. Usa /help per vedere i comandi disponibili.");
         }
@@ -112,7 +109,7 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
         String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
         Long userId = update.getCallbackQuery().getFrom().getId();
 
-        System.out.println("🔘 Callback ricevuta: " + callbackData + " da user " + userId);
+        System.out.println("📘 Callback ricevuta: " + callbackData + " da user " + userId);
 
         if (callbackData.startsWith("league_")) {
             String leagueCode = callbackData.replace("league_", "");
@@ -135,10 +132,22 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
             int teamId = Integer.parseInt(callbackData.replace("team_", ""));
             databaseManager.logQuery(userId, "TEAM_INFO", String.valueOf(teamId));
             sendTeamInfo(chatId, teamId);
+        } else if (callbackData.startsWith("h2h_select1_")) {
+            int teamId = Integer.parseInt(callbackData.replace("h2h_select1_", ""));
+            userSelectedTeam.put(userId, teamId);
+            sendH2HSecondTeamSelection(chatId, teamId);
+        } else if (callbackData.startsWith("h2h_select2_")) {
+            String[] parts = callbackData.replace("h2h_select2_", "").split("_");
+            int team1Id = Integer.parseInt(parts[0]);
+            int team2Id = Integer.parseInt(parts[1]);
+            databaseManager.logQuery(userId, "H2H", team1Id + "_" + team2Id);
+            sendHeadToHead(chatId, team1Id, team2Id);
         } else if (callbackData.equals("back_leagues")) {
             sendLeagueSelection(chatId);
         } else if (callbackData.equals("back_teams")) {
             sendTeamsMenu(chatId);
+        } else if (callbackData.equals("back_h2h")) {
+            sendH2HMenu(chatId);
         }
     }
 
@@ -150,6 +159,7 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
             • 📊 Classifiche dei principali campionati
             • ⚽ Partite in programma
             • 🥇 Classifica marcatori
+            • ⚔️ Scontri diretti tra squadre
             
             Usa /campionati per iniziare o /help per maggiori informazioni.
             """;
@@ -164,16 +174,13 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
             /help - Mostra questo messaggio
             /campionati - Seleziona un campionato
             /squadre - Info dettagliate sulle squadre
+            /h2h - Confronta due squadre (scontro diretto)
             /oggi - Partite di oggi
-            /cerca [nome] - Cerca un giocatore
+            /marcatori - Classifica marcatori globale
             /preferiti - Mostra le tue preferenze
             /stats - Visualizza le tue statistiche
             
-            📌 ESEMPI:
-            /cerca Cristiano Ronaldo
-            /cerca Lautaro Martinez
-            
-            💡 I dati vengono salvati in cache per velocizzare le risposte!
+            💡Scegli uno dei comandi per ricevere informazioni sul mondo del calcio!!!!
             """;
         sendMessage(chatId, helpText);
     }
@@ -231,6 +238,13 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
         sendMessage(chatId, topScorers);
     }
 
+    private void sendAllTopScorers(String chatId, Long userId) {
+        sendMessage(chatId, "⏳ Caricamento classifica marcatori globale...");
+        databaseManager.logQuery(userId, "ALL_TOPSCORERS", null);
+        String allScorers = footballAPI.getAllTopScorers();
+        sendMessage(chatId, allScorers);
+    }
+
     private void sendUserPreferences(String chatId, Long userId) {
         StringBuilder prefs = new StringBuilder();
         prefs.append("⚙️ LE TUE PREFERENZE\n\n");
@@ -270,7 +284,7 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
                 stats.append("• ").append(entry).append("\n");
             }
         } else {
-            stats.append("📭 Nessuna ricerca effettuata ancora.\n");
+            stats.append("🔭 Nessuna ricerca effettuata ancora.\n");
         }
 
         stats.append("\n💡 Usa /campionati per iniziare!");
@@ -279,44 +293,37 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     private void sendTodayMatches(String chatId, Long userId) {
-        sendMessage(chatId, "⏳ Caricamento partite di oggi...");
+        sendMessage(chatId, "⏳ Caricamento partite di campionato di oggi...");
         databaseManager.logQuery(userId, "TODAY_MATCHES", null);
         String matches = footballAPI.getTodayMatches();
         sendMessage(chatId, matches);
     }
 
-    private void sendPlayerSearch(String chatId, Long userId, String playerName) {
-        sendMessage(chatId, "🔍 Ricerca in corso: " + playerName + "...");
-        databaseManager.logQuery(userId, "PLAYER_SEARCH", playerName);
-        String results = footballAPI.searchPlayer(playerName);
-        sendMessage(chatId, results);
-    }
-
     private void sendTeamsMenu(String chatId) {
-        SendMessage message = new SendMessage(chatId, "🏟️ Seleziona una squadra per vedere info dettagliate:");
+        SendMessage message = new SendMessage(chatId, "🟢 Seleziona una squadra per vedere info dettagliate:");
 
         List<InlineKeyboardRow> keyboard = new ArrayList<>();
 
-        // Serie A
+        //Serie A
         keyboard.add(createKeyboardRow("⚫🔵 Inter", "team_108"));
         keyboard.add(createKeyboardRow("🔴⚫ Milan", "team_98"));
         keyboard.add(createKeyboardRow("⚪⚫ Juventus", "team_109"));
         keyboard.add(createKeyboardRow("🟡🔴 Roma", "team_100"));
         keyboard.add(createKeyboardRow("🔵⚪ Napoli", "team_113"));
 
-        // Premier League
+        //Premier League
         keyboard.add(createKeyboardRow("🔴 Manchester United", "team_66"));
         keyboard.add(createKeyboardRow("🔵 Manchester City", "team_65"));
         keyboard.add(createKeyboardRow("🔴 Liverpool", "team_64"));
         keyboard.add(createKeyboardRow("🔵 Chelsea", "team_61"));
         keyboard.add(createKeyboardRow("⚪🔴 Arsenal", "team_57"));
 
-        // La Liga
+        //La Liga
         keyboard.add(createKeyboardRow("⚪ Real Madrid", "team_86"));
         keyboard.add(createKeyboardRow("🔴🔵 Barcelona", "team_81"));
         keyboard.add(createKeyboardRow("🔴⚪ Atletico Madrid", "team_78"));
 
-        // Bundesliga
+        //Bundesliga
         keyboard.add(createKeyboardRow("🔴 Bayern Munich", "team_5"));
         keyboard.add(createKeyboardRow("🟡⚫ Borussia Dortmund", "team_4"));
 
@@ -326,6 +333,82 @@ public class FootballBot implements LongPollingSingleThreadUpdateConsumer {
         message.setReplyMarkup(markupInline);
 
         executeMessage(message);
+    }
+
+    private void sendH2HMenu(String chatId) {
+        SendMessage message = new SendMessage(chatId, "⚔️ SCONTRO DIRETTO\n\nSeleziona la PRIMA squadra:");
+
+        List<InlineKeyboardRow> keyboard = new ArrayList<>();
+
+        // Serie A
+        keyboard.add(createKeyboardRow("⚫🔵 Inter", "h2h_select1_108"));
+        keyboard.add(createKeyboardRow("🔴⚫ Milan", "h2h_select1_98"));
+        keyboard.add(createKeyboardRow("⚪⚫ Juventus", "h2h_select1_109"));
+        keyboard.add(createKeyboardRow("🟡🔴 Roma", "h2h_select1_100"));
+        keyboard.add(createKeyboardRow("🔵⚪ Napoli", "h2h_select1_113"));
+
+        // Premier League
+        keyboard.add(createKeyboardRow("🔴 Manchester United", "h2h_select1_66"));
+        keyboard.add(createKeyboardRow("🔵 Manchester City", "h2h_select1_65"));
+        keyboard.add(createKeyboardRow("🔴 Liverpool", "h2h_select1_64"));
+        keyboard.add(createKeyboardRow("🔵 Chelsea", "h2h_select1_61"));
+        keyboard.add(createKeyboardRow("⚪🔴 Arsenal", "h2h_select1_57"));
+
+        // La Liga
+        keyboard.add(createKeyboardRow("⚪ Real Madrid", "h2h_select1_86"));
+        keyboard.add(createKeyboardRow("🔴🔵 Barcelona", "h2h_select1_81"));
+        keyboard.add(createKeyboardRow("🔴⚪ Atletico Madrid", "h2h_select1_78"));
+
+        // Bundesliga
+        keyboard.add(createKeyboardRow("🔴 Bayern Munich", "h2h_select1_5"));
+        keyboard.add(createKeyboardRow("🟡⚫ Borussia Dortmund", "h2h_select1_4"));
+
+        InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup(keyboard);
+        message.setReplyMarkup(markupInline);
+
+        executeMessage(message);
+    }
+
+    private void sendH2HSecondTeamSelection(String chatId, int team1Id) {
+        SendMessage message = new SendMessage(chatId, "⚔️ Prima squadra selezionata!\n\nOra seleziona la SECONDA squadra:");
+
+        List<InlineKeyboardRow> keyboard = new ArrayList<>();
+
+        // Serie A
+        if (team1Id != 108) keyboard.add(createKeyboardRow("⚫🔵 Inter", "h2h_select2_" + team1Id + "_108"));
+        if (team1Id != 98) keyboard.add(createKeyboardRow("🔴⚫ Milan", "h2h_select2_" + team1Id + "_98"));
+        if (team1Id != 109) keyboard.add(createKeyboardRow("⚪⚫ Juventus", "h2h_select2_" + team1Id + "_109"));
+        if (team1Id != 100) keyboard.add(createKeyboardRow("🟡🔴 Roma", "h2h_select2_" + team1Id + "_100"));
+        if (team1Id != 113) keyboard.add(createKeyboardRow("🔵⚪ Napoli", "h2h_select2_" + team1Id + "_113"));
+
+        // Premier League
+        if (team1Id != 66) keyboard.add(createKeyboardRow("🔴 Manchester United", "h2h_select2_" + team1Id + "_66"));
+        if (team1Id != 65) keyboard.add(createKeyboardRow("🔵 Manchester City", "h2h_select2_" + team1Id + "_65"));
+        if (team1Id != 64) keyboard.add(createKeyboardRow("🔴 Liverpool", "h2h_select2_" + team1Id + "_64"));
+        if (team1Id != 61) keyboard.add(createKeyboardRow("🔵 Chelsea", "h2h_select2_" + team1Id + "_61"));
+        if (team1Id != 57) keyboard.add(createKeyboardRow("⚪🔴 Arsenal", "h2h_select2_" + team1Id + "_57"));
+
+        // La Liga
+        if (team1Id != 86) keyboard.add(createKeyboardRow("⚪ Real Madrid", "h2h_select2_" + team1Id + "_86"));
+        if (team1Id != 81) keyboard.add(createKeyboardRow("🔴🔵 Barcelona", "h2h_select2_" + team1Id + "_81"));
+        if (team1Id != 78) keyboard.add(createKeyboardRow("🔴⚪ Atletico Madrid", "h2h_select2_" + team1Id + "_78"));
+
+        // Bundesliga
+        if (team1Id != 5) keyboard.add(createKeyboardRow("🔴 Bayern Munich", "h2h_select2_" + team1Id + "_5"));
+        if (team1Id != 4) keyboard.add(createKeyboardRow("🟡⚫ Borussia Dortmund", "h2h_select2_" + team1Id + "_4"));
+
+        keyboard.add(createKeyboardRow("⬅️ Torna indietro", "back_h2h"));
+
+        InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup(keyboard);
+        message.setReplyMarkup(markupInline);
+
+        executeMessage(message);
+    }
+
+    private void sendHeadToHead(String chatId, int team1Id, int team2Id) {
+        sendMessage(chatId, "⏳ Caricamento ultimo scontro diretto...");
+        String h2h = footballAPI.getLastHeadToHead(team1Id, team2Id);
+        sendMessage(chatId, h2h);
     }
 
     private void sendTeamInfo(String chatId, int teamId) {

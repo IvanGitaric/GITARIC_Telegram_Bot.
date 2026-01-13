@@ -27,19 +27,16 @@ public class FootballAPI {
         this.databaseManager = DatabaseManager.getInstance();
 
         if (apiKey == null || apiKey.isEmpty()) {
-            System.err.println("⚠️  ATTENZIONE: FOOTBALL_API_KEY non configurata!");
+            System.err.println("⚠️ ATTENZIONE: FOOTBALL_API_KEY non configurata!");
         }
     }
 
     /**
      * Recupera la classifica di un campionato
-     * @param leagueCode Codice del campionato (es: SA, PL, PD)
-     * @return Stringa formattata con la classifica
      */
     public String getStandings(String leagueCode) {
         String cacheKey = "standings_" + leagueCode;
 
-        // Controlla se c'è una cache valida
         String cachedData = databaseManager.getCache(cacheKey);
         if (cachedData != null) {
             System.out.println("📦 Dati caricati dalla cache: " + cacheKey);
@@ -85,7 +82,6 @@ public class FootballAPI {
             }
 
             String finalResult = result.toString();
-            // Salva in cache per 30 minuti
             databaseManager.saveCache(cacheKey, finalResult, leagueCode, 30);
             System.out.println("💾 Classifica salvata in cache");
 
@@ -100,16 +96,13 @@ public class FootballAPI {
 
     /**
      * Recupera le prossime partite di un campionato
-     * @param leagueCode Codice del campionato
-     * @return Stringa formattata con le partite
      */
     public String getMatches(String leagueCode) {
         String cacheKey = "matches_" + leagueCode;
 
-        // Controlla cache (10 minuti per le partite)
         String cachedData = databaseManager.getCache(cacheKey);
         if (cachedData != null) {
-            System.out.println("📦 Dati caricati dalla cache: " + cacheKey);
+            System.out.println("Dati caricati dalla cache: " + cacheKey);
             return cachedData;
         }
 
@@ -151,9 +144,8 @@ public class FootballAPI {
             }
 
             String finalResult = result.toString();
-            // Cache per 10 minuti
             databaseManager.saveCache(cacheKey, finalResult, leagueCode, 10);
-            System.out.println("💾 Partite salvate in cache");
+            System.out.println("Partite salvate in cache");
 
             return finalResult;
 
@@ -166,13 +158,10 @@ public class FootballAPI {
 
     /**
      * Recupera la classifica marcatori di un campionato
-     * @param leagueCode Codice del campionato
-     * @return Stringa formattata con i top scorer
      */
     public String getTopScorers(String leagueCode) {
         String cacheKey = "topscorers_" + leagueCode;
 
-        // Controlla cache (60 minuti per i marcatori)
         String cachedData = databaseManager.getCache(cacheKey);
         if (cachedData != null) {
             System.out.println("📦 Dati caricati dalla cache: " + cacheKey);
@@ -233,7 +222,6 @@ public class FootballAPI {
             }
 
             String finalResult = result.toString();
-            // Cache per 60 minuti
             databaseManager.saveCache(cacheKey, finalResult, leagueCode, 60);
             System.out.println("💾 Marcatori salvati in cache");
 
@@ -247,47 +235,10 @@ public class FootballAPI {
     }
 
     /**
-     * Effettua una chiamata HTTP all'API
+     * Recupera la classifica marcatori globale (tutti i campionati)
      */
-    private String makeApiRequest(String endpoint) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .header("X-Auth-Token", apiKey)
-                .GET()
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-        if (response.statusCode() != 200) {
-            throw new Exception("API request failed with status: " + response.statusCode());
-        }
-
-        return response.body();
-    }
-
-    private String getLeagueNameFromJson(JsonObject json) {
-        if (json.has("competition")) {
-            JsonObject competition = json.getAsJsonObject("competition");
-            return competition.get("name").getAsString();
-        }
-        return "";
-    }
-
-    private String getLeagueNameFromCompetition(JsonObject json) {
-        if (json.has("competition")) {
-            JsonObject competition = json.getAsJsonObject("competition");
-            return competition.get("name").getAsString();
-        }
-        return "";
-    }
-
-    /**
-     * Recupera le informazioni dettagliate di una squadra con la rosa
-     * @param teamId ID della squadra
-     * @return Stringa formattata con le informazioni della squadra
-     */
-    public String getTeamInfo(int teamId) {
-        String cacheKey = "team_" + teamId;
+    public String getAllTopScorers() {
+        String cacheKey = "all_topscorers";
 
         String cachedData = databaseManager.getCache(cacheKey);
         if (cachedData != null) {
@@ -295,115 +246,51 @@ public class FootballAPI {
             return cachedData;
         }
 
-        try {
-            String endpoint = API_BASE_URL + "/teams/" + teamId;
-            String response = makeApiRequest(endpoint);
+        StringBuilder result = new StringBuilder();
+        result.append("🌍 CLASSIFICA MARCATORI - TUTTI I CAMPIONATI\n\n");
 
-            JsonObject json = JsonParser.parseString(response).getAsJsonObject();
+        String[] leagues = {"SA", "PL", "PD", "BL1", "FL1"};
+        String[] leagueNames = {"🇮🇹 Serie A", "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League", "🇪🇸 La Liga", "🇩🇪 Bundesliga", "🇫🇷 Ligue 1"};
 
-            String teamName = json.get("name").getAsString();
-            String shortName = json.get("shortName").getAsString();
-            String founded = json.has("founded") && !json.get("founded").isJsonNull()
-                    ? json.get("founded").getAsString() : "N/D";
-            String venue = json.has("venue") && !json.get("venue").isJsonNull()
-                    ? json.get("venue").getAsString() : "N/D";
-            String clubColors = json.has("clubColors") && !json.get("clubColors").isJsonNull()
-                    ? json.get("clubColors").getAsString() : "N/D";
+        for (int i = 0; i < leagues.length; i++) {
+            try {
+                String endpoint = API_BASE_URL + "/competitions/" + leagues[i] + "/scorers?limit=3";
+                String response = makeApiRequest(endpoint);
 
-            StringBuilder result = new StringBuilder();
-            result.append("🏟️ INFORMAZIONI SQUADRA\n\n");
-            result.append("📌 Nome: ").append(teamName).append("\n");
-            result.append("🔤 Nome breve: ").append(shortName).append("\n");
-            result.append("📅 Fondata: ").append(founded).append("\n");
-            result.append("🏟️ Stadio: ").append(venue).append("\n");
-            result.append("🎨 Colori: ").append(clubColors).append("\n\n");
+                JsonObject json = JsonParser.parseString(response).getAsJsonObject();
+                JsonArray scorers = json.getAsJsonArray("scorers");
 
-            // Rosa giocatori
-            if (json.has("squad") && !json.get("squad").isJsonNull()) {
-                JsonArray squad = json.getAsJsonArray("squad");
-                result.append("👥 ROSA (").append(squad.size()).append(" giocatori)\n\n");
+                if (scorers != null && !scorers.isEmpty()) {
+                    result.append("━━━━━━━━━━━━━━━━━━━━\n");
+                    result.append(leagueNames[i]).append("\n");
+                    result.append("━━━━━━━━━━━━━━━━━━━━\n");
 
-                // Raggruppa per ruolo
-                int goalkeepers = 0, defenders = 0, midfielders = 0, attackers = 0;
+                    for (int j = 0; j < Math.min(scorers.size(), 3); j++) {
+                        JsonObject scorer = scorers.get(j).getAsJsonObject();
+                        JsonObject player = scorer.getAsJsonObject("player");
+                        JsonObject team = scorer.getAsJsonObject("team");
+                        int goals = scorer.get("goals").getAsInt();
 
-                for (int i = 0; i < squad.size(); i++) {
-                    JsonObject player = squad.get(i).getAsJsonObject();
-                    String position = player.has("position") && !player.get("position").isJsonNull()
-                            ? player.get("position").getAsString() : "N/D";
-
-                    if (position.contains("Goalkeeper")) goalkeepers++;
-                    else if (position.contains("Defence")) defenders++;
-                    else if (position.contains("Midfield")) midfielders++;
-                    else if (position.contains("Offence")) attackers++;
+                        String medal = j == 0 ? "🥇" : j == 1 ? "🥈" : "🥉";
+                        result.append(String.format("%s %s\n", medal, player.get("name").getAsString()));
+                        result.append(String.format("   %s - ⚽ %d gol\n", team.get("name").getAsString(), goals));
+                    }
+                    result.append("\n");
                 }
-
-                result.append("🧤 Portieri: ").append(goalkeepers).append("\n");
-                result.append("🛡️ Difensori: ").append(defenders).append("\n");
-                result.append("⚙️ Centrocampisti: ").append(midfielders).append("\n");
-                result.append("⚡ Attaccanti: ").append(attackers).append("\n");
+            } catch (Exception e) {
+                System.err.println("⚠️ Errore nel recupero marcatori per " + leagues[i]);
             }
-
-            String finalResult = result.toString();
-            databaseManager.saveCache(cacheKey, finalResult, null, 120);
-            System.out.println("💾 Info squadra salvate in cache");
-
-            return finalResult;
-
-        } catch (Exception e) {
-            System.err.println("❌ Errore nel recupero info squadra: " + e.getMessage());
-            e.printStackTrace();
-            return "❌ Errore nel recupero delle informazioni della squadra.";
         }
-    }
 
-    /**
-     * Cerca un giocatore per nome
-     * @param playerName Nome del giocatore da cercare
-     * @return Stringa formattata con i risultati della ricerca
-     */
-    public String searchPlayer(String playerName) {
-        try {
-            String endpoint = API_BASE_URL + "/persons?name=" + playerName.replace(" ", "%20");
-            String response = makeApiRequest(endpoint);
+        String finalResult = result.toString();
+        databaseManager.saveCache(cacheKey, finalResult, null, 120);
+        System.out.println("💾 Classifica marcatori globale salvata in cache");
 
-            JsonObject json = JsonParser.parseString(response).getAsJsonObject();
-            JsonArray persons = json.getAsJsonArray("persons");
-
-            if (persons == null || persons.isEmpty()) {
-                return "❌ Nessun giocatore trovato con il nome: " + playerName;
-            }
-
-            StringBuilder result = new StringBuilder();
-            result.append("🔍 RISULTATI RICERCA: ").append(playerName).append("\n\n");
-
-            for (int i = 0; i < Math.min(persons.size(), 10); i++) {
-                JsonObject person = persons.get(i).getAsJsonObject();
-
-                String name = person.get("name").getAsString();
-                String dateOfBirth = person.has("dateOfBirth") && !person.get("dateOfBirth").isJsonNull()
-                        ? person.get("dateOfBirth").getAsString() : "N/D";
-                String nationality = person.has("nationality") && !person.get("nationality").isJsonNull()
-                        ? person.get("nationality").getAsString() : "N/D";
-                String position = person.has("position") && !person.get("position").isJsonNull()
-                        ? person.get("position").getAsString() : "N/D";
-
-                result.append((i + 1)).append(". ").append(name).append("\n");
-                result.append("   📅 Nato: ").append(dateOfBirth).append("\n");
-                result.append("   🌍 Nazionalità: ").append(nationality).append("\n");
-                result.append("   ⚽ Ruolo: ").append(position).append("\n\n");
-            }
-
-            return result.toString();
-
-        } catch (Exception e) {
-            System.err.println("❌ Errore nella ricerca giocatore: " + e.getMessage());
-            return "❌ Errore nella ricerca del giocatore.";
-        }
+        return finalResult;
     }
 
     /**
      * Recupera le partite di oggi da tutti i campionati
-     * @return Stringa formattata con le partite di oggi
      */
     public String getTodayMatches() {
         String cacheKey = "matches_today";
@@ -455,7 +342,6 @@ public class FootballAPI {
                 result.append(competition).append("\n");
                 result.append("   ").append(homeTeam).append(" vs ").append(awayTeam);
 
-                // Aggiungi il risultato se la partita è finita o in corso
                 if (status.equals("FINISHED") || status.equals("IN_PLAY") || status.equals("PAUSED")) {
                     JsonObject score = match.getAsJsonObject("score");
                     if (score.has("fullTime") && !score.get("fullTime").isJsonNull()) {
@@ -470,8 +356,8 @@ public class FootballAPI {
             }
 
             String finalResult = result.toString();
-            databaseManager.saveCache(cacheKey, finalResult, null, 5); // Cache 5 minuti
-            System.out.println("💾 Partite di oggi salvate in cache");
+            databaseManager.saveCache(cacheKey, finalResult, null, 5);
+            System.out.println("Partite di oggi salvate in cache");
 
             return finalResult;
 
@@ -483,13 +369,81 @@ public class FootballAPI {
     }
 
     /**
-     * Recupera lo scontro diretto tra due squadre
-     * @param team1Id ID prima squadra
-     * @param team2Id ID seconda squadra
-     * @return Stringa formattata con lo storico degli scontri
+     * Recupera le informazioni dettagliate di una squadra con la rosa
      */
-    public String getHeadToHead(int team1Id, int team2Id) {
-        String cacheKey = "h2h_" + team1Id + "_" + team2Id;
+    public String getTeamInfo(int teamId) {
+        String cacheKey = "team_" + teamId;
+
+        String cachedData = databaseManager.getCache(cacheKey);
+        if (cachedData != null) {
+            System.out.println("Dati caricati dalla cache: " + cacheKey);
+            return cachedData;
+        }
+
+        try {
+            String endpoint = API_BASE_URL + "/teams/" + teamId;
+            String response = makeApiRequest(endpoint);
+
+            JsonObject json = JsonParser.parseString(response).getAsJsonObject();
+
+            String teamName = json.get("name").getAsString();
+            String shortName = json.get("shortName").getAsString();
+            String founded = json.has("founded") && !json.get("founded").isJsonNull()
+                    ? json.get("founded").getAsString() : "N/D";
+            String venue = json.has("venue") && !json.get("venue").isJsonNull()
+                    ? json.get("venue").getAsString() : "N/D";
+            String clubColors = json.has("clubColors") && !json.get("clubColors").isJsonNull()
+                    ? json.get("clubColors").getAsString() : "N/D";
+
+            StringBuilder result = new StringBuilder();
+            result.append("🟢 INFORMAZIONI SQUADRA\n\n");
+            result.append("📌 Nome: ").append(teamName).append("\n");
+            result.append("🔤 Nome breve: ").append(shortName).append("\n");
+            result.append("📅 Fondata: ").append(founded).append("\n");
+            result.append("🟢 Stadio: ").append(venue).append("\n");
+            result.append("🎨 Colori: ").append(clubColors).append("\n\n");
+
+            if (json.has("squad") && !json.get("squad").isJsonNull()) {
+                JsonArray squad = json.getAsJsonArray("squad");
+                result.append("👥 ROSA (").append(squad.size()).append(" giocatori)\n\n");
+
+                int goalkeepers = 0, defenders = 0, midfielders = 0, attackers = 0;
+
+                for (int i = 0; i < squad.size(); i++) {
+                    JsonObject player = squad.get(i).getAsJsonObject();
+                    String position = player.has("position") && !player.get("position").isJsonNull()
+                            ? player.get("position").getAsString() : "N/D";
+
+                    if (position.contains("Goalkeeper")) goalkeepers++;
+                    else if (position.contains("Defence")) defenders++;
+                    else if (position.contains("Midfield")) midfielders++;
+                    else if (position.contains("Offence")) attackers++;
+                }
+
+                result.append("🧤 Portieri: ").append(goalkeepers).append("\n");
+                result.append("🛡️ Difensori: ").append(defenders).append("\n");
+                result.append("⚙️ Centrocampisti: ").append(midfielders).append("\n");
+                result.append("⚡ Attaccanti: ").append(attackers).append("\n");
+            }
+
+            String finalResult = result.toString();
+            databaseManager.saveCache(cacheKey, finalResult, null, 120);
+            System.out.println("💾 Info squadra salvate in cache");
+
+            return finalResult;
+
+        } catch (Exception e) {
+            System.err.println("❌ Errore nel recupero info squadra: " + e.getMessage());
+            e.printStackTrace();
+            return "❌ Errore nel recupero delle informazioni della squadra.";
+        }
+    }
+
+    /**
+     * Recupera l'ULTIMO scontro diretto tra due squadre
+     */
+    public String getLastHeadToHead(int team1Id, int team2Id) {
+        String cacheKey = "last_h2h_" + Math.min(team1Id, team2Id) + "_" + Math.max(team1Id, team2Id);
 
         String cachedData = databaseManager.getCache(cacheKey);
         if (cachedData != null) {
@@ -498,19 +452,21 @@ public class FootballAPI {
         }
 
         try {
-            String endpoint = API_BASE_URL + "/teams/" + team1Id + "/matches";
+            String endpoint = API_BASE_URL + "/teams/" + team1Id + "/matches?status=FINISHED&limit=50";
             String response = makeApiRequest(endpoint);
 
             JsonObject json = JsonParser.parseString(response).getAsJsonObject();
             JsonArray allMatches = json.getAsJsonArray("matches");
 
-            StringBuilder result = new StringBuilder();
-            result.append("⚔️ SCONTRI DIRETTI\n\n");
+            if (allMatches == null || allMatches.isEmpty()) {
+                return "❌ Nessuna partita trovata per questa squadra.";
+            }
 
-            int team1Wins = 0, team2Wins = 0, draws = 0;
-            int matchesFound = 0;
+            DateTimeFormatter inputFormatter = DateTimeFormatter.ISO_DATE_TIME;
+            DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-            for (int i = 0; i < allMatches.size() && matchesFound < 10; i++) {
+            // Cerca l'ultima partita tra le due squadre
+            for (int i = 0; i < allMatches.size(); i++) {
                 JsonObject match = allMatches.get(i).getAsJsonObject();
 
                 int homeId = match.getAsJsonObject("homeTeam").get("id").getAsInt();
@@ -518,64 +474,95 @@ public class FootballAPI {
 
                 // Verifica se la partita coinvolge entrambe le squadre
                 if ((homeId == team1Id && awayId == team2Id) || (homeId == team2Id && awayId == team1Id)) {
-                    String status = match.get("status").getAsString();
 
-                    if (status.equals("FINISHED")) {
-                        matchesFound++;
+                    String homeTeam = match.getAsJsonObject("homeTeam").get("name").getAsString();
+                    String awayTeam = match.getAsJsonObject("awayTeam").get("name").getAsString();
 
-                        String homeTeam = match.getAsJsonObject("homeTeam").get("shortName").getAsString();
-                        String awayTeam = match.getAsJsonObject("awayTeam").get("shortName").getAsString();
+                    JsonObject score = match.getAsJsonObject("score");
+                    JsonObject fullTime = score.getAsJsonObject("fullTime");
+                    int homeGoals = fullTime.get("home").isJsonNull() ? 0 : fullTime.get("home").getAsInt();
+                    int awayGoals = fullTime.get("away").isJsonNull() ? 0 : fullTime.get("away").getAsInt();
 
-                        JsonObject score = match.getAsJsonObject("score");
-                        JsonObject fullTime = score.getAsJsonObject("fullTime");
-                        int homeGoals = fullTime.get("home").getAsInt();
-                        int awayGoals = fullTime.get("away").getAsInt();
+                    String utcDate = match.get("utcDate").getAsString();
+                    LocalDateTime dateTime = LocalDateTime.parse(utcDate, inputFormatter);
+                    String formattedDate = dateTime.format(outputFormatter);
 
-                        result.append(homeTeam).append(" ").append(homeGoals).append("-");
-                        result.append(awayGoals).append(" ").append(awayTeam).append("\n");
+                    String competition = match.getAsJsonObject("competition").get("name").getAsString();
 
-                        // Conta vittorie
-                        if (homeGoals > awayGoals) {
-                            if (homeId == team1Id) team1Wins++; else team2Wins++;
-                        } else if (awayGoals > homeGoals) {
-                            if (awayId == team1Id) team1Wins++; else team2Wins++;
-                        } else {
-                            draws++;
-                        }
+                    StringBuilder result = new StringBuilder();
+                    result.append("⚔️ ULTIMO SCONTRO DIRETTO\n\n");
+                    result.append("🏆 ").append(competition).append("\n");
+                    result.append("📅 ").append(formattedDate).append("\n\n");
+                    result.append("━━━━━━━━━━━━━━━━━━━━\n");
+                    result.append(homeTeam).append(" ").append(homeGoals).append(" - ");
+                    result.append(awayGoals).append(" ").append(awayTeam).append("\n");
+                    result.append("━━━━━━━━━━━━━━━━━━━━\n\n");
+
+                    // Determina il vincitore
+                    if (homeGoals > awayGoals) {
+                        result.append("🏆 Vittoria: ").append(homeTeam);
+                    } else if (awayGoals > homeGoals) {
+                        result.append("🏆 Vittoria: ").append(awayTeam);
+                    } else {
+                        result.append("🤝 Pareggio");
                     }
+
+                    String finalResult = result.toString();
+                    databaseManager.saveCache(cacheKey, finalResult, null, 1440);
+                    System.out.println("💾 H2H salvato in cache");
+
+                    return finalResult;
                 }
             }
 
-            if (matchesFound == 0) {
-                return "❌ Nessuno scontro diretto trovato tra queste squadre.";
-            }
-
-            result.append("\n📊 BILANCIO:\n");
-            result.append("Vittorie squadra 1: ").append(team1Wins).append("\n");
-            result.append("Pareggi: ").append(draws).append("\n");
-            result.append("Vittorie squadra 2: ").append(team2Wins).append("\n");
-
-            String finalResult = result.toString();
-            databaseManager.saveCache(cacheKey, finalResult, null, 1440); // Cache 24 ore
-
-            return finalResult;
+            return "❌ Nessuno scontro diretto trovato tra queste squadre nelle ultime 50 partite.";
 
         } catch (Exception e) {
             System.err.println("❌ Errore nel recupero H2H: " + e.getMessage());
-            return "❌ Errore nel recupero dello storico scontri diretti.";
+            e.printStackTrace();
+            return "❌ Errore nel recupero dello scontro diretto.";
         }
     }
 
-    /**
-     * Restituisce un emoji in base alla posizione in classifica
-     */
+    private String makeApiRequest(String endpoint) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .header("X-Auth-Token", apiKey)
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new Exception("API request failed with status: " + response.statusCode() + " - " + response.body());
+        }
+
+        return response.body();
+    }
+
+    private String getLeagueNameFromJson(JsonObject json) {
+        if (json.has("competition")) {
+            JsonObject competition = json.getAsJsonObject("competition");
+            return competition.get("name").getAsString();
+        }
+        return "";
+    }
+
+    private String getLeagueNameFromCompetition(JsonObject json) {
+        if (json.has("competition")) {
+            JsonObject competition = json.getAsJsonObject("competition");
+            return competition.get("name").getAsString();
+        }
+        return "";
+    }
+
     private String getPositionEmoji(int position) {
         if (position == 1) return "🥇";
         if (position == 2) return "🥈";
         if (position == 3) return "🥉";
-        if (position <= 4) return "🟢"; // Champions League
-        if (position <= 6) return "🔵"; // Europa League
-        if (position >= 18) return "🔴"; // Retrocessione
+        if (position <= 4) return "🟢";
+        if (position <= 6) return "🔵";
+        if (position >= 18) return "🔴";
         return "⚪";
     }
 }
