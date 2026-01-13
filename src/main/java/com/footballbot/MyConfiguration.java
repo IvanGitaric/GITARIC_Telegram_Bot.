@@ -16,9 +16,9 @@ public class MyConfiguration {
         try {
             Configurations configurations = new Configurations();
             config = configurations.properties("config.properties");
-            System.out.println("✅ File di configurazione caricato con successo");
+            System.out.println("File di configurazione caricato con successo");
         } catch (ConfigurationException e) {
-            System.err.println("❌ Errore: File config.properties non trovato nella cartella resources");
+            System.err.println("Errore: File config.properties non trovato nella cartella resources");
             System.err.println("Assicurati di aver creato il file e configurato BOT_TOKEN e FOOTBALL_API_KEY");
             e.printStackTrace();
             System.exit(-1);
