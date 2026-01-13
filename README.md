@@ -233,7 +233,7 @@ telegram-football-bot/
 Il database viene creato automaticamente all'avvio. Se manca, verrà generato nella directory di esecuzione.
 
 ### Troppi errori "Rate Limit"
-La versione gratuita dell'API ha limiti. Il caching riduce le chiamate, ma se hai molti utenti considera l'upgrade.
+La versione gratuita dell'API ha limiti. 
 
 ## Possibili Miglioramenti
 
